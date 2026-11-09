@@ -1,0 +1,10 @@
+numpy<2
+pandas<3
+scikit-learn
+matplotlib
+pythainlp
+tabulate
+sentencepiece
+accelerate
+torch
+transformers>=4.51,<5
