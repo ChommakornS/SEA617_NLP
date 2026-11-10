@@ -14,10 +14,10 @@ t2["กลุ่มหลัก"] = t2[GROUPS].idxmax(axis=1)
 t2 = t2.sort_values(["กลุ่มหลัก", "รวม"], ascending=[True, False])
 mism = int((df["category"].map(t2["กลุ่มหลัก"]) != df["case_group"]).sum())
 
-t1.to_csv(P("summary_group_split.csv"), encoding="utf-8-sig")
-t2.to_csv(P("mapping_category_to_group.csv"), encoding="utf-8-sig")
-with open(P("data_summary.md"), "w", encoding="utf-8") as f:
+t1.to_csv(P("00_summary_group_split.csv"), encoding="utf-8-sig")
+t2.to_csv(P("00_mapping_category_to_group.csv"), encoding="utf-8-sig")
+with open(P("00_data_summary.md"), "w", encoding="utf-8") as f:
     f.write(f"# Dataset summary\n\nจำนวนคดี: {len(df)}\n\n## กลุ่ม x split\n\n{t1.to_markdown()}\n\n"
             f"## หมวดย่อย -> กลุ่มหลัก\n\n{t2.to_markdown()}\n\n"
             f"คดีที่หมวดย่อยไม่ตรงกับกลุ่มหลักของหมวดนั้น: {mism} ({100*mism/len(df):.1f}%)\n")
-print(open(P("data_summary.md"), encoding="utf-8").read())
+print(open(P("00_data_summary.md"), encoding="utf-8").read())

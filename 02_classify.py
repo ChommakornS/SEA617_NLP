@@ -30,7 +30,7 @@ for pooling in ("mean", "cls"):
     sel.append({"pooling": pooling, "best_C": C, "val_macro_F1": round(f1, 4)})
 sel = pd.DataFrame(sel)
 print(sel)
-sel.to_csv(P("pooling_selection.csv"), index=False)
+sel.to_csv(P("02_pooling_selection.csv"), index=False)
 POOL = sel.sort_values("val_macro_F1", ascending=False).iloc[0]["pooling"]
 C = float(sel.set_index("pooling").loc[POOL, "best_C"])
 print(f"เลือก pooling = {POOL}, C = {C} (ตัดสินด้วย validation)")
@@ -50,10 +50,10 @@ cm = confusion_matrix(y[te], pred, labels=GROUPS)
 print(rep)
 print(pd.DataFrame(cm, index=[f"จริง:{g}" for g in GROUPS], columns=[f"ทาย:{g}" for g in GROUPS]))
 
-json.dump(res, open(P("lr_metrics.json"), "w", encoding="utf-8"), indent=2)
-open(P("lr_report.txt"), "w", encoding="utf-8").write(rep)
-pd.DataFrame(cm, index=GROUPS, columns=GROUPS).to_csv(P("lr_confusion.csv"), encoding="utf-8-sig")
-plot_cm(cm, "WangchanBERTa + LR (test)", P("lr_confusion.png"))
+json.dump(res, open(P("02_lr_metrics.json"), "w", encoding="utf-8"), indent=2)
+open(P("02_lr_report.txt"), "w", encoding="utf-8").write(rep)
+pd.DataFrame(cm, index=GROUPS, columns=GROUPS).to_csv(P("02_lr_confusion.csv"), encoding="utf-8-sig")
+plot_cm(cm, "WangchanBERTa + LR (test)", P("02_lr_confusion.png"))
 
 m = ~tr.values
 Pb = clf.predict_proba(E[m])
@@ -61,5 +61,5 @@ out = pd.DataFrame({"uid": df.loc[m, "uid"].values, "split": df.loc[m, "split"].
                     "true": y[m], "pred": clf.predict(E[m])})
 for i, c in enumerate(clf.classes_):
     out[f"p_{c}"] = Pb[:, i]
-out.to_csv(P("lr_preds.csv"), index=False, encoding="utf-8-sig")
-print("saved lr_preds.csv, lr_metrics.json")
+out.to_csv(P("02_lr_preds.csv"), index=False, encoding="utf-8-sig")
+print("saved 02_lr_preds.csv, 02_lr_metrics.json")

@@ -5,7 +5,7 @@
 
   python 03_typhoon_zeroshot.py --limit 20   # smoke test (ไม่เซฟผลไปใช้ต่อ)
   python 03_typhoon_zeroshot.py              # รันเต็ม test ทั้งหมด (เซฟทุก 25 คดี รันต่อได้ถ้าหลุด)
-ถ้าไม่มี GPU แนะนำรันสคริปต์นี้บน Colab แล้วนำ results/typhoon_preds.csv มาวาง
+ถ้าไม่มี GPU แนะนำรันสคริปต์นี้บน Colab แล้วนำ results/03_typhoon_preds.csv มาวาง
 """
 import argparse
 import json
@@ -32,7 +32,7 @@ q = df[df["split"] == "test"].copy()
 smoke = a.limit > 0
 if smoke:
     q = q.head(a.limit)
-TY = P("typhoon_preds.csv")
+TY = P("03_typhoon_preds.csv")
 done = pd.read_csv(TY).set_index("uid").to_dict("index") if (os.path.exists(TY) and not smoke) else {}
 todo = q[~q["uid"].isin(done)]
 rows = [{"uid": u, **v} for u, v in done.items()]
@@ -54,8 +54,25 @@ if len(todo):
         if dev == "cpu":
             print("!! ไม่พบ GPU: โมเดล 4B บน CPU ใช้ RAM ~16GB และช้ามาก แนะนำรันบน Colab")
         ttok = AutoTokenizer.from_pretrained(cfg.TYPHOON)
+        # dtype: GPU รุ่นใหม่ (compute capability >= 8) ใช้ bfloat16, GPU เก่าอย่าง T4 ใช้ float16, CPU ใช้ float32
+        # บังคับได้ด้วยตัวแปร TYPHOON_DTYPE = bf16 | fp16 | fp32
+        force = os.environ.get("TYPHOON_DTYPE", "auto")
+        if force == "bf16":
+            dt = torch.bfloat16
+        elif force == "fp16":
+            dt = torch.float16
+        elif force == "fp32":
+            dt = torch.float32
+        elif dev == "cpu":
+            import psutil   # CPU: ถ้า RAM ว่างไม่ถึง ~20GB ใช้ bfloat16 (กิน RAM ~8GB) ไม่งั้น float32
+            free = psutil.virtual_memory().available / 1e9
+            print(f"RAM ว่าง {free:.1f} GB")
+            dt = torch.float32 if free > 20 else torch.bfloat16
+        else:
+            dt = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+        print("dtype:", dt)
         tm = AutoModelForCausalLM.from_pretrained(
-            cfg.TYPHOON, torch_dtype=torch.bfloat16 if dev == "cuda" else torch.float32,
+            cfg.TYPHOON, torch_dtype=dt, low_cpu_mem_usage=True,
             device_map="auto" if dev == "cuda" else None).eval()
 
         def build_prompt(text):
@@ -67,22 +84,27 @@ if len(todo):
 
         @torch.no_grad()
         def score_choices(prompt):
+            # คำนวณ prompt ครั้งเดียว แล้วใช้ KV cache ร่วมกันสำหรับทั้ง 3 ตัวเลือก (ลดงานคำนวณราว 3 เท่า ผลเท่าเดิม)
             p_ids = ttok(prompt, add_special_tokens=False).input_ids
-            seqs, spans = [], []
+            out = tm(input_ids=torch.tensor([p_ids], device=tm.device), use_cache=True)
+            base = out.logits[0, -1].float().log_softmax(-1)      # การแจกแจงของ token แรกของคำตอบ
+            cache = out.past_key_values
+            scores = []
             for c in GROUPS:
                 c_ids = ttok(c, add_special_tokens=False).input_ids
-                seqs.append(p_ids + c_ids)
-                spans.append((len(p_ids), len(p_ids) + len(c_ids)))
-            L = max(len(s) for s in seqs)
-            pad = ttok.pad_token_id if ttok.pad_token_id is not None else 0
-            ids = torch.tensor([s + [pad] * (L - len(s)) for s in seqs])
-            att = torch.tensor([[1] * len(s) + [0] * (L - len(s)) for s in seqs])
-            lg = tm(input_ids=ids.to(tm.device), attention_mask=att.to(tm.device)).logits   # ไม่แปลงทั้งก้อนเป็น float เพื่อประหยัด VRAM
-            return [lg[i, s - 1:e - 1].float().log_softmax(-1).gather(1, ids[i, s:e].to(lg.device)[:, None]).sum().item()
-                    for i, (s, e) in enumerate(spans)]
+                sc = base[c_ids[0]].item()
+                if len(c_ids) > 1:                               # token ถัดไปของคำตอบ (ถ้ามี)
+                    lg = tm(input_ids=torch.tensor([c_ids[:-1]], device=tm.device),
+                            past_key_values=cache, use_cache=True).logits[0].float().log_softmax(-1)
+                    sc += sum(lg[k, c_ids[k + 1]].item() for k in range(len(c_ids) - 1))
+                    cache.crop(len(p_ids))                       # ย้อน cache กลับเป็นแค่ prompt
+                scores.append(sc)
+            return scores
 
         for n, (_, r) in enumerate(todo.iterrows()):
             sc = score_choices(build_prompt(clean_text(r["principle"])))
+            if any(np.isnan(x) for x in sc):
+                print("!! คะแนนเป็น NaN (อาจเป็น overflow ของ float16) -> ลอง TYPHOON_DTYPE=bf16 หรือ fp32")
             rows.append({"uid": r["uid"], "split": "test", "true": r["case_group"], "pred": GROUPS[int(np.argmax(sc))],
                          **{f"logp_{g}": s for g, s in zip(GROUPS, sc)}})
             if n % 25 == 0:
@@ -104,7 +126,7 @@ rep = classification_report(t["true"], t["pred"], labels=GROUPS, digits=3, zero_
 cm = confusion_matrix(t["true"], t["pred"], labels=GROUPS)
 print(rep)
 print(pd.DataFrame(cm, index=[f"จริง:{g}" for g in GROUPS], columns=[f"ทาย:{g}" for g in GROUPS]))
-json.dump(res, open(P("typhoon_metrics.json"), "w", encoding="utf-8"), indent=2)
-open(P("typhoon_report.txt"), "w", encoding="utf-8").write(rep)
-pd.DataFrame(cm, index=GROUPS, columns=GROUPS).to_csv(P("typhoon_confusion.csv"), encoding="utf-8-sig")
-plot_cm(cm, "Typhoon zero-shot (test)", P("typhoon_confusion.png"))
+json.dump(res, open(P("03_typhoon_metrics.json"), "w", encoding="utf-8"), indent=2)
+open(P("03_typhoon_report.txt"), "w", encoding="utf-8").write(rep)
+pd.DataFrame(cm, index=GROUPS, columns=GROUPS).to_csv(P("03_typhoon_confusion.csv"), encoding="utf-8-sig")
+plot_cm(cm, "Typhoon zero-shot (test)", P("03_typhoon_confusion.png"))

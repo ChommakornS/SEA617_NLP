@@ -1,0 +1,6 @@
+{
+  "model": "typhoon-ai/typhoon-s-4b-nitibench-ccl-legal-agent-research-preview",
+  "n": 300,
+  "acc": 0.8966666666666666,
+  "f1": 0.8976498911982782
+}

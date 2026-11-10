@@ -23,6 +23,24 @@ def P(name):
     return os.path.join(cfg.OUT, name)
 
 
+import atexit
+
+
+def _list_saved():
+    """ตอนสคริปต์จบ: พิมพ์รายการไฟล์ใน results/ ที่ขึ้นต้นด้วยเลขสคริปต์นี้ (ยืนยันว่าเซฟจริง)"""
+    prefix = os.path.basename(sys.argv[0])[:3]          # เช่น "02_"
+    if not (prefix[:2].isdigit() and prefix.endswith("_")):
+        return
+    fs = sorted(f for f in os.listdir(cfg.OUT) if f.startswith(prefix))
+    if fs:
+        print(f"\n[saved] ไฟล์ที่ {os.path.basename(sys.argv[0])} เซฟไว้ใน {cfg.OUT}")
+        for f in fs:
+            print(f"   {f}  ({os.path.getsize(os.path.join(cfg.OUT, f)) / 1024:.1f} KB)")
+
+
+atexit.register(_list_saved)
+
+
 def need(path, hint):
     if not os.path.exists(path):
         sys.exit(f"ไม่พบ {path}\n-> {hint}")
@@ -52,10 +70,10 @@ def l2norm(x):
 
 
 def load_embeddings(df, pooling):
-    need(P("embeddings.npz"), "รัน 01_embed.py ก่อน")
-    z = np.load(P("embeddings.npz"), allow_pickle=True)
+    need(P("01_embeddings.npz"), "รัน 01_embed.py ก่อน")
+    z = np.load(P("01_embeddings.npz"), allow_pickle=True)
     if list(z["uids"].astype(str)) != list(df["uid"]):
-        sys.exit("ลำดับ uid ใน embeddings.npz ไม่ตรงกับข้อมูล -> ลบ results/embeddings.npz แล้วรัน 01_embed.py ใหม่")
+        sys.exit("ลำดับ uid ใน 01_embeddings.npz ไม่ตรงกับข้อมูล -> ลบ results/01_embeddings.npz แล้วรัน 01_embed.py ใหม่")
     return l2norm(z[pooling])
 
 

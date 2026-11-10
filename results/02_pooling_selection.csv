@@ -1,0 +1,3 @@
+pooling,best_C,val_macro_F1
+mean,100,0.9174
+cls,10,0.9073

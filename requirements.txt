@@ -8,3 +8,4 @@ sentencepiece
 accelerate
 torch
 transformers>=4.51,<5
+openpyxl

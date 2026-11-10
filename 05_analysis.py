@@ -9,14 +9,14 @@ import pandas as pd
 import config as cfg
 from common import (GROUPS, P, bootstrap_ci, build_eval_sets, clean_text, law_of, load_data, need)
 
-need(P("retrieval_per_query.csv"), "รัน 04_retrieval_eval.py ก่อน")
+need(P("04_retrieval_per_query.csv"), "รัน 04_retrieval_eval.py ก่อน")
 KS = cfg.KS
 df = load_data()
 group = df["case_group"].values
 uid_of = df["uid"].values
 secs, q_idx, rel, answerable = build_eval_sets(df)
-res = pd.read_csv(P("retrieval_per_query.csv"))
-tops = pickle.load(open(P("retrieval_tops.pkl"), "rb"))
+res = pd.read_csv(P("04_retrieval_per_query.csv"))
+tops = pickle.load(open(P("04_retrieval_tops.pkl"), "rb"))
 
 # ---- 1) RQ แบบ paired ----
 def paired(x, y, K):
@@ -38,14 +38,14 @@ for name, x, y in PAIRS:
         if r:
             out.append({"คำถาม": name, "X − Y": f"{x} − {y}", "K": K, **r})
 pr = pd.DataFrame(out)
-pr.to_csv(P("paired_rq.csv"), index=False, encoding="utf-8-sig")
+pr.to_csv(P("05_paired_rq.csv"), index=False, encoding="utf-8-sig")
 print("== Paired (mean diff ของ P@K ต่อ query, X − Y) ==")
 print(pr.to_string(index=False))
 
 # ---- 2) รายกลุ่ม ----
 bg = res.pivot_table(index="true_group", columns="pipeline", values="P@10", aggfunc="mean").reindex(GROUPS).round(3)
 bg["n_queries"] = res[res.pipeline == "A"].groupby("true_group").size().reindex(GROUPS)
-bg.to_csv(P("retrieval_P10_by_group.csv"), encoding="utf-8-sig")
+bg.to_csv(P("05_retrieval_P10_by_group.csv"), encoding="utf-8-sig")
 print("\n== P@10 แยกกลุ่มของ query ==")
 print(bg.to_string())
 
@@ -64,8 +64,8 @@ for i in rng.choice(aq, size=min(cfg.N_EXPLAIN, len(aq)), replace=False):
               f"- มาตราที่ถูกอ้างบ่อยใน Top-10: {sc.most_common(5)}",
               f"- กลุ่มคดีของ Top-10: {dict(collections.Counter(group[j] for j in top))}",
               f"- relevant ใน Top-10: {sum(j in rel[i] for j in top)}/10", ""]
-open(P("explain_A.md"), "w", encoding="utf-8").write("\n".join(lines))
-print("\nเขียน", P("explain_A.md"))
+open(P("05_explain_A.md"), "w", encoding="utf-8").write("\n".join(lines))
+print("\nเขียน", P("05_explain_A.md"))
 
 # ---- 4) qualitative: A vs C ----
 if {"A", "C"} <= set(res.pipeline):
@@ -89,5 +89,5 @@ if {"A", "C"} <= set(res.pipeline):
         show(int(i), "A ดีกว่า C")
     for i in d.index[:cfg.N_QUAL]:
         show(int(i), "C ดีกว่า A")
-    open(P("qualitative.md"), "w", encoding="utf-8").write("\n".join(ql))
-    print("เขียน", P("qualitative.md"), "(ต้องอ่านและตีความเอง)")
+    open(P("05_qualitative.md"), "w", encoding="utf-8").write("\n".join(ql))
+    print("เขียน", P("05_qualitative.md"), "(ต้องอ่านและตีความเอง)")

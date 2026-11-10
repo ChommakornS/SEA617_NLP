@@ -27,12 +27,12 @@ KS = cfg.KS
 df = load_data()
 group = df["case_group"].values
 uid_of = df["uid"].values
-need(P("lr_metrics.json"), "รัน 02_classify.py ก่อน")
-POOL = json.load(open(P("lr_metrics.json"), encoding="utf-8"))["pooling"]
+need(P("02_lr_metrics.json"), "รัน 02_classify.py ก่อน")
+POOL = json.load(open(P("02_lr_metrics.json"), encoding="utf-8"))["pooling"]
 E = load_embeddings(df, POOL)
 
 # TF-IDF (ตัดคำด้วย PyThaiNLP)
-tokp = P("tokenized.pkl")
+tokp = P("04_tokenized.pkl")
 if os.path.exists(tokp):
     toks = pickle.load(open(tokp, "rb"))
 else:
@@ -43,15 +43,15 @@ T = TfidfVectorizer(token_pattern=r"\S+", lowercase=False, sublinear_tf=True, mi
 secs, q_idx, rel, answerable = build_eval_sets(df)
 print(f"test queries = {len(q_idx)} | มีมาตราสาระ = {sum(bool(secs[i]) for i in q_idx)} | มีคำตอบใน pool = {len(answerable)}")
 
-lr = pd.read_csv(P("lr_preds.csv"))
+lr = pd.read_csv(P("02_lr_preds.csv"))
 lr = lr[lr["split"] == "test"].set_index("uid")["pred"].to_dict()
 P_LR = {i: lr[uid_of[i]] for i in q_idx}
 P_TY = None
-if os.path.exists(P("typhoon_preds.csv")):
-    ty = pd.read_csv(P("typhoon_preds.csv")).set_index("uid")["pred"].to_dict()
+if os.path.exists(P("03_typhoon_preds.csv")):
+    ty = pd.read_csv(P("03_typhoon_preds.csv")).set_index("uid")["pred"].to_dict()
     P_TY = {i: ty[uid_of[i]] for i in q_idx if uid_of[i] in ty}
 else:
-    print("!! ไม่พบ typhoon_preds.csv -> ข้าม Pipeline B (รัน 03_typhoon_zeroshot.py แล้วรัน 04 ใหม่)")
+    print("!! ไม่พบ 03_typhoon_preds.csv -> ข้าม Pipeline B (รัน 03_typhoon_zeroshot.py แล้วรัน 04 ใหม่)")
 P_TRUE = {i: group[i] for i in q_idx}
 
 S_emb = E[q_idx] @ E.T
@@ -88,8 +88,8 @@ for name, S, preds in PIPES:
             r[f"P@{K}"] = sum(j in rel[i] for j in top[:K]) / K
         rows.append(r)
 res = pd.DataFrame(rows)
-res.to_csv(P("retrieval_per_query.csv"), index=False, encoding="utf-8-sig")
-pickle.dump(tops, open(P("retrieval_tops.pkl"), "wb"))
+res.to_csv(P("04_retrieval_per_query.csv"), index=False, encoding="utf-8-sig")
+pickle.dump(tops, open(P("04_retrieval_tops.pkl"), "wb"))
 
 summ = []
 for name, g in res.groupby("pipeline", sort=False):
@@ -102,8 +102,8 @@ for name, g in res.groupby("pipeline", sort=False):
     row["filter_removed_all_relevant"] = round(g["filter_removed_all_relevant"].mean(), 3)
     summ.append(row)
 summ = pd.DataFrame(summ)
-summ.to_csv(P("retrieval_summary.csv"), index=False, encoding="utf-8-sig")
-open(P("retrieval_summary.md"), "w", encoding="utf-8").write(
+summ.to_csv(P("04_retrieval_summary.csv"), index=False, encoding="utf-8-sig")
+open(P("04_retrieval_summary.md"), "w", encoding="utf-8").write(
     f"queries(test)={len(q_idx)}, answerable={len(answerable)}\n\n" + summ.to_markdown(index=False))
 print(summ.to_string(index=False))
 
@@ -118,5 +118,5 @@ ax.set_ylabel("Precision")
 ax.legend(ncol=3, fontsize=8)
 ax.set_title("Retrieval: Precision@K by pipeline")
 plt.tight_layout()
-plt.savefig(P("retrieval_P_at_K.png"), dpi=150)
-print("saved retrieval_summary.csv/.md, retrieval_per_query.csv, retrieval_tops.pkl")
+plt.savefig(P("04_retrieval_P_at_K.png"), dpi=150)
+print("saved 04_retrieval_summary.csv/.md, 04_retrieval_per_query.csv, 04_retrieval_tops.pkl")

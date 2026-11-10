@@ -1,0 +1,4 @@
+model=airesearch/wangchanberta-base-att-spm-uncased
+max_len=510
+token_median=158
+over_max_len=133 (4.4%)
