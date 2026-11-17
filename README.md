@@ -1,4 +1,4 @@
-# NLP Project Pipeline (แยกเป็นสคริปต์ รันทีละขั้นได้)
+# NLP Project Pipeline
 
 ## เตรียม
 1. วางไฟล์ `deka_balanced_3000_criminal.json`, `_civil.json`, `_labor.json` ใน `data/`
